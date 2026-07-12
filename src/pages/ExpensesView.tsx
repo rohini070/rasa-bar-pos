@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { TrendingDown, Plus, Trash2, Edit } from "lucide-react";
+import { TrendingDown, Plus, Trash2, Edit, Calendar } from "lucide-react";
 
 export default function ExpensesView() {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -89,6 +89,18 @@ export default function ExpensesView() {
   const todayString = new Date().toDateString();
   const todayExpenses = expenses.filter(e => new Date(e.created_at).toDateString() === todayString).reduce((sum, e) => sum + (e.amount || 0), 0);
 
+  // Group expenses by date for daily breakdown
+  const expensesByDate: { [key: string]: any[] } = {};
+  expenses.forEach(e => {
+    const date = new Date(e.created_at).toLocaleDateString();
+    if (!expensesByDate[date]) {
+      expensesByDate[date] = [];
+    }
+    expensesByDate[date].push(e);
+  });
+
+  const sortedDates = Object.keys(expensesByDate).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -111,16 +123,77 @@ export default function ExpensesView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-card rounded-xl border border-border p-6">
-          <p className="text-sm text-muted-foreground">Total Expenses</p>
-          <p className="text-3xl font-bold text-foreground mt-1">₹{totalExpenses.toLocaleString()}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Expenses</p>
+              <p className="text-3xl font-bold text-foreground mt-1">₹{totalExpenses.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <TrendingDown size={20} className="text-red-600" />
+            </div>
+          </div>
         </div>
         <div className="bg-card rounded-xl border border-border p-6">
-          <p className="text-sm text-muted-foreground">Today's Expenses</p>
-          <p className="text-3xl font-bold text-red-600 mt-1">₹{todayExpenses.toLocaleString()}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Today's Expenses</p>
+              <p className="text-3xl font-bold text-red-600 mt-1">₹{todayExpenses.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+              <Calendar size={20} className="text-orange-600" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Expenses Table */}
+      {/* Daily Breakdown */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="bg-muted px-6 py-3">
+          <h3 className="font-semibold text-foreground">Daily Breakdown</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          {sortedDates.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No expenses recorded yet</p>
+          ) : (
+            sortedDates.map((date) => {
+              const dayExpenses = expensesByDate[date];
+              const dayTotal = dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+              return (
+                <div key={date} className="border border-border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-4 py-2 flex justify-between items-center">
+                    <span className="font-medium text-foreground">{date}</span>
+                    <span className="font-bold text-red-600">₹{dayTotal.toLocaleString()}</span>
+                  </div>
+                  <table className="w-full">
+                    <thead className="bg-muted/30">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Category</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Description</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {dayExpenses.map((expense) => (
+                        <tr key={expense.id} className="hover:bg-muted/50">
+                          <td className="px-4 py-2">
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                              {expense.category}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-foreground">{expense.description}</td>
+                          <td className="px-4 py-2 text-sm font-semibold text-foreground">₹{expense.amount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* All Expenses Table */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full">
           <thead className="bg-muted">

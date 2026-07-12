@@ -60,6 +60,52 @@ CREATE TABLE IF NOT EXISTS loan_payments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ─── CUSTOMER CREDIT TABLE ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS customers_credit (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  paid_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  pending_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ─── CUSTOMER CREDIT ITEMS TABLE ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS customer_credit_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  customer_id UUID NOT NULL REFERENCES customers_credit(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL,
+  price DECIMAL(10, 2) NOT NULL,
+  quantity INTEGER NOT NULL,
+  total DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ─── CREDIT / PENDING PAYMENTS TABLE (DEPRECATED - Will be removed) ─────────────
+CREATE TABLE IF NOT EXISTS credit_pending_payments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  amount DECIMAL(10, 2) NOT NULL,
+  sale_id UUID, -- Optional reference to original sale if exists
+  notes TEXT,
+  status TEXT DEFAULT 'pending', -- pending / paid
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  paid_at TIMESTAMP WITH TIME ZONE
+);
+
+-- ─── INVESTMENTS TABLE ─────────────────────────────────────────────────────────────
+-- Drop existing table to recreate with correct schema
+DROP TABLE IF EXISTS investments CASCADE;
+
+CREATE TABLE investments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ─── EXPENSE CATEGORIES UPDATE ────────────────────────────────────────────────────
 -- Add category column to expenses table if it doesn't exist
 ALTER TABLE expenses 

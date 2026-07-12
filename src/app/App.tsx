@@ -7,6 +7,7 @@ import LoansView from "../pages/LoansView";
 import SalesView from "../pages/SalesView";
 import MenuManagementPage from "../pages/MenuManagementView";
 import ReportsView from "../pages/ReportsView";
+import CreditView from "../pages/CreditView";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -38,6 +39,7 @@ import {
   Sparkles,
   ChevronDown,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 import React from "react";
 
@@ -46,6 +48,7 @@ import React from "react";
 type NavId =
   | "Dashboard"
   | "Sales"
+  | "Credit"
   | "Expenses"
   | "Investments"
   | "Loans"
@@ -81,6 +84,7 @@ const RED_LIGHT  = "#fee2e2";
 const NAV_ITEMS: { label: NavId; icon: any }[] = [
   { label: "Dashboard",      icon: LayoutDashboard },
   { label: "Sales",          icon: TrendingUp      },
+  { label: "Credit",         icon: Users           },
   { label: "Expenses",       icon: TrendingDown    },
   { label: "Investments",    icon: PiggyBank       },
   { label: "Loans",          icon: CreditCard      },
@@ -1008,6 +1012,7 @@ export default function App() {
     switch (activeNav) {
       case "Dashboard": return <DashboardView />;
       case "Sales": return <SalesView />;
+      case "Credit": return <CreditView />;
       case "Expenses": return <ExpensesView />;
       case "Investments": return <InvestmentsView />;
       case "Loans": return <LoansView />;

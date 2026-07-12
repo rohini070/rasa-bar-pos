@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { TrendingUp, Plus, Trash2, Edit } from "lucide-react";
+import { TrendingUp, Plus, Trash2, Edit, Clock, CheckCircle } from "lucide-react";
 import SearchableDropdown from "../components/SearchableDropdown";
 
 export default function SalesView() {
@@ -12,6 +12,8 @@ export default function SalesView() {
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [isCredit, setIsCredit] = useState(false);
+  const [customerName, setCustomerName] = useState("");
 
   useEffect(() => {
     loadSales();
@@ -40,37 +42,130 @@ export default function SalesView() {
     e.preventDefault();
     const quantityNum = Number(quantity);
     const priceNum = Number(price);
+    
     if (!selectedItem || !quantity || !price || isNaN(quantityNum) || isNaN(priceNum)) {
       alert("Please fill all fields");
       return;
     }
 
-    const total = quantityNum * priceNum;
-    const saleData = {
-      item_name: selectedItem.name,
-      quantity: quantityNum,
-      price: priceNum,
-      total,
-      payment_method: paymentMethod,
-    };
+    if (isCredit && !customerName.trim()) {
+      alert("Please enter customer name for credit sale");
+      return;
+    }
 
-    if (editingId) {
-      const { error } = await supabase.from("sales").update(saleData).eq("id", editingId);
-      if (error) {
-        alert("Error updating sale");
+    const total = quantityNum * priceNum;
+
+    if (isCredit) {
+      // Customer-based credit system
+      const customerNameTrimmed = customerName.trim();
+      
+      // Check if customer already exists
+      const { data: existingCustomer } = await supabase
+        .from("customers_credit")
+        .select("*")
+        .eq("customer_name", customerNameTrimmed)
+        .single();
+
+      let customerId: string;
+
+      if (existingCustomer) {
+        // Update existing customer
+        customerId = existingCustomer.id;
+        const newTotal = existingCustomer.total_amount + total;
+        const newPending = existingCustomer.pending_amount + total;
+
+        const { error: updateError } = await supabase
+          .from("customers_credit")
+          .update({
+            total_amount: newTotal,
+            pending_amount: newPending,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", customerId);
+
+        if (updateError) {
+          alert("Error updating customer credit: " + updateError.message);
+          return;
+        }
+      } else {
+        // Create new customer
+        const { data: newCustomer, error: insertError } = await supabase
+          .from("customers_credit")
+          .insert([{
+            customer_name: customerNameTrimmed,
+            total_amount: total,
+            paid_amount: 0,
+            pending_amount: total,
+          }])
+          .select()
+          .single();
+
+        if (insertError || !newCustomer) {
+          alert("Error creating customer: " + (insertError?.message || "Unknown error"));
+          return;
+        }
+
+        customerId = newCustomer.id;
+      }
+
+      // Add item to customer_credit_items
+      const { error: itemError } = await supabase
+        .from("customer_credit_items")
+        .insert([{
+          customer_id: customerId,
+          item_name: selectedItem.name,
+          price: priceNum,
+          quantity: quantityNum,
+          total: total,
+        }]);
+
+      if (itemError) {
+        alert("Error adding item to customer: " + itemError.message);
         return;
       }
     } else {
-      const { error } = await supabase.from("sales").insert([saleData]);
-      if (error) {
-        alert("Error adding sale");
-        return;
+      // Normal sale
+      const saleData = {
+        item_name: selectedItem.name,
+        quantity: quantityNum,
+        price: priceNum,
+        total,
+        payment_method: paymentMethod,
+      };
+
+      if (editingId) {
+        const { error } = await supabase.from("sales").update(saleData).eq("id", editingId);
+        if (error) {
+          alert("Error updating sale");
+          return;
+        }
+      } else {
+        // Prevent duplicate sales within last 5 minutes
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const { data: recentSale } = await supabase.from("sales")
+          .select("*")
+          .eq("item_name", selectedItem.name)
+          .eq("quantity", quantityNum)
+          .eq("total", total)
+          .gte("created_at", fiveMinutesAgo.toISOString())
+          .single();
+        
+        if (recentSale) {
+          alert("Similar sale was just recorded. Please wait a moment or verify.");
+          return;
+        }
+
+        const { error } = await supabase.from("sales").insert([saleData]);
+        if (error) {
+          alert("Error adding sale");
+          return;
+        }
       }
+      loadSales();
     }
 
     setShowModal(false);
     resetForm();
-    loadSales();
   }
 
   async function handleDelete(id: string) {
@@ -99,13 +194,15 @@ export default function SalesView() {
     setQuantity("");
     setPrice("");
     setPaymentMethod("Cash");
+    setIsCredit(false);
+    setCustomerName("");
   }
 
-  const totalSales = sales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const totalSales = sales.reduce((sum: number, s: any) => sum + (s.total || 0), 0);
   const totalOrders = sales.length;
   const todayString = new Date().toDateString();
-  const todaySales = sales.filter(s => new Date(s.created_at).toDateString() === todayString).reduce((sum, s) => sum + (s.total || 0), 0);
-  const todayOrders = sales.filter(s => new Date(s.created_at).toDateString() === todayString).length;
+  const todaySales = sales.filter((s: any) => new Date(s.created_at).toDateString() === todayString).reduce((sum: number, s: any) => sum + (s.total || 0), 0);
+  const todayOrders = sales.filter((s: any) => new Date(s.created_at).toDateString() === todayString).length;
 
   return (
     <div className="space-y-6">
@@ -247,12 +344,38 @@ export default function SalesView() {
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="w-full border p-2 rounded"
+                    disabled={isCredit}
                   >
                     <option>Cash</option>
                     <option>UPI</option>
                     <option>Card</option>
                   </select>
                 </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="credit"
+                    checked={isCredit}
+                    onChange={(e) => setIsCredit(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="credit" className="text-sm font-medium text-foreground">
+                    Mark as Credit / Pay Later
+                  </label>
+                </div>
+                {isCredit && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter customer name"
+                      className="w-full border p-2 rounded"
+                      required
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button

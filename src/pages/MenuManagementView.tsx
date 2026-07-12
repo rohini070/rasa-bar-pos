@@ -37,6 +37,15 @@ export default function MenuManagementView() {
       return;
     }
 
+    // Check for duplicate menu item name (only when adding new)
+    if (!editingId) {
+      const { data: existing } = await supabase.from("menu_items").select("*").eq("name", name).single();
+      if (existing) {
+        alert("Menu item with this name already exists");
+        return;
+      }
+    }
+
     const itemData = { name, category, price: priceNum, available };
 
     if (editingId) {

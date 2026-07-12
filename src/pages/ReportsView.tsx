@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { BarChart3, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function ReportsView() {
   const [sales, setSales] = useState<any[]>([]);
@@ -27,6 +28,33 @@ export default function ReportsView() {
   const profit = totalSales - totalExpenses;
   const totalOrders = sales.length;
 
+  // Calculate time-based sales
+  const todayString = new Date().toDateString();
+  const todaySales = sales.filter(s => new Date(s.created_at).toDateString() === todayString).reduce((sum, s) => sum + (s.total || 0), 0);
+  
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const weeklySales = sales.filter(s => new Date(s.created_at) >= oneWeekAgo).reduce((sum, s) => sum + (s.total || 0), 0);
+  
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlySales = sales.filter(s => {
+    const date = new Date(s.created_at);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  }).reduce((sum, s) => sum + (s.total || 0), 0);
+
+  // Prepare date-wise sales data for chart (last 30 days)
+  const salesByDate: { [key: string]: number } = {};
+  sales.forEach(s => {
+    const date = new Date(s.created_at).toLocaleDateString();
+    salesByDate[date] = (salesByDate[date] || 0) + (s.total || 0);
+  });
+  
+  const chartData = Object.entries(salesByDate)
+    .map(([date, total]) => ({ date, total }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(-30); // Last 30 days
+
   // Get sales by item
   const salesByItem: { [key: string]: number } = {};
   sales.forEach(s => {
@@ -51,7 +79,44 @@ export default function ReportsView() {
         <p className="text-sm text-muted-foreground mt-1">Business analytics and performance reports</p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Time-based Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-card rounded-xl border border-border p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Today's Sales</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">₹{todaySales.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+              <Calendar size={20} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Weekly Sales</p>
+              <p className="text-2xl font-bold text-blue-600 mt-1">₹{weeklySales.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <TrendingUp size={20} className="text-blue-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl border border-border p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Monthly Sales</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">₹{monthlySales.toLocaleString()}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <BarChart3 size={20} className="text-purple-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Overall Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card rounded-xl border border-border p-6">
           <div className="flex items-center justify-between">
@@ -98,6 +163,31 @@ export default function ReportsView() {
               <BarChart3 size={20} className="text-purple-600" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Date-wise Sales Chart */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="bg-muted px-6 py-3">
+          <h3 className="font-semibold text-foreground">Date-wise Sales (Last 30 Days)</h3>
+        </div>
+        <div className="p-6">
+          {chartData.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No sales data yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip 
+                  formatter={(value: number) => `₹${value.toLocaleString()}`}
+                  contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+                />
+                <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 

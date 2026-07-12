@@ -45,7 +45,7 @@ export default function InvestmentsView() {
         { category, description, amount: amountNum },
       ]);
       if (error) {
-        alert("Error adding investment");
+        alert("Error adding investment: " + error.message);
         return;
       }
     }
